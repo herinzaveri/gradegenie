@@ -1,6 +1,12 @@
+'use client';
+
 /* eslint-disable max-len */
 import type React from 'react';
 import {CheckCircle, ShieldCheck} from 'lucide-react';
+import {useState} from 'react';
+import {useRouter} from 'next/navigation';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 import {
   Button,
   Card,
@@ -63,6 +69,37 @@ const MicrosoftIcon = (props: React.SVGProps<SVGSVGElement>) => {
 };
 
 const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post('/api/login', {
+        email,
+        password,
+      });
+
+      const {token} = response.data; // Extract the token from the response
+
+      // Store the token in a cookie
+      Cookies.set('authToken', token, {expires: 7, secure: true, sameSite: 'strict'});
+
+      // Redirect to the dashboard
+      router.push('/dashboard/assignments');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to log in');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Left side - Benefits and testimonials (hidden on mobile) */}
@@ -159,6 +196,9 @@ const LoginPage = () => {
                 id="email"
                 placeholder="m@example.com"
                 type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -168,15 +208,23 @@ const LoginPage = () => {
                   Forgot password?
                 </Link>
               </div>
-              <Input id="password" type="password" />
+              <Input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
             <Button
               className="w-full"
               size="lg"
-              asChild
+              onClick={handleLogin}
+              disabled={loading}
             >
-              <Link href="/dashboard/assignments">Log in</Link>
+              {loading ? 'Logging in...' : 'Log in'}
             </Button>
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 border-t pt-4">
             <div className="text-center text-sm">
