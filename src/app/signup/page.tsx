@@ -23,6 +23,9 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import {Logo} from '@/components/logo';
+import {useRouter} from 'next/navigation';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 
 // Custom icon components
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => {
@@ -75,8 +78,40 @@ const SignupPage = () => {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [billingCycle, setBillingCycle] = useState('yearly');
   const [selectedPlan, setSelectedPlan] = useState('department');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  const handleSignup = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post('/api/signup', {
+        name,
+        email,
+        password,
+        billingCycle,
+        selectedPlan,
+      });
+
+      const {token} = response.data; // Extract the token from the response
+
+      // Store the token in a cookie
+      Cookies.set('authToken', token, {expires: 7, secure: true, sameSite: 'strict'});
+
+      // Redirect to the dashboard or next step
+      router.push('/dashboard/assignments');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to sign up');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleContinue = (e: React.FormEvent) => {
     e.preventDefault();
@@ -315,6 +350,9 @@ const SignupPage = () => {
                       type="password"
                       placeholder="••••••••"
                       required
+                      minLength={8}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">Password must be at least 8 characters</p>
                   </div>
@@ -561,12 +599,18 @@ const SignupPage = () => {
                 </div>
 
                 <div className="flex flex-col space-y-2">
-                  <Button className="w-full py-6 text-base" asChild>
-                    <Link href="/dashboard/assignments">
+                  <Button
+                    className="w-full py-6 text-base"
+                    onClick={handleSignup}
+                    disabled={loading}
+                  >
+                    {loading ? 'Processing...' : <>
                       <CreditCard className="mr-2 h-4 w-4" />
                       Activate Your Trial — Secure & No Charges Today
-                    </Link>
+                    </>}
                   </Button>
+
+                  {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
                   <Button
                     variant="ghost"
