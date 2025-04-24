@@ -203,7 +203,7 @@ const DashboardLayout = ({children}: { children: ReactNode }) => {
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/login">
+                  <Link href="/logout">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </Link>
