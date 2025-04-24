@@ -23,7 +23,7 @@ interface SyllabusCreatorProps {
     subject: string
     gradeLevel: string
   }
-  onComplete: () => void
+  onComplete: (syllabusData: any) => void
   isCreating: boolean
 }
 
@@ -31,6 +31,7 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('generate');
   const [syllabusData, setSyllabusData] = useState<any>(null);
+  const [errors, setErrors] = useState<any>({});
   const [prompt, setPrompt] = useState('');
   const [additionalInfo, setAdditionalInfo] = useState('');
 
@@ -120,6 +121,71 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
       setIsGenerating(false);
       setActiveTab('edit');
     }, 3000);
+  };
+
+  // Function to validate syllabusData
+  const validateSyllabusData = () => {
+    const newErrors: any = {};
+
+    if (!syllabusData) {
+      newErrors.general = 'Syllabus data is missing. Please generate the syllabus first.';
+    } else {
+      if (!syllabusData.courseTitle) {
+        newErrors.courseTitle = 'Course Title is required.';
+      }
+      if (!syllabusData.instructor) {
+        newErrors.instructor = 'Instructor Name is required.';
+      }
+      if (!syllabusData.term) {
+        newErrors.term = 'Term is required.';
+      }
+      if (!syllabusData.courseDescription || !syllabusData.courseDescription.trim()) {
+        newErrors.courseDescription = 'Course Description is required.';
+      }
+      if (!syllabusData.learningObjectives || syllabusData.learningObjectives.some((obj: string) => !obj.trim())) {
+        newErrors.learningObjectives = 'All learning objectives must be filled out.';
+      }
+      if (
+        !syllabusData.requiredMaterials ||
+        syllabusData.requiredMaterials.some(
+            (material: any) => !material.title.trim() || !material.author.trim() || !material.publisher.trim(),
+        )
+      ) {
+        newErrors.requiredMaterials = 'All required materials must have a title, author, and publisher.';
+      }
+      if (
+        !syllabusData.gradingPolicy ||
+        Object.values(syllabusData.gradingPolicy).some(
+            (policy: any) => !policy.description.trim() || policy.percentage === undefined,
+        )
+      ) {
+        newErrors.gradingPolicy = 'All grading components must have a description and percentage.';
+      }
+      if (
+        !syllabusData.weeklySchedule ||
+        syllabusData.weeklySchedule.some(
+            (week: any) => !week.topic.trim() || !week.readings.trim() || !week.assignments.trim(),
+        )
+      ) {
+        newErrors.weeklySchedule = 'All weekly schedule entries must have a topic, readings, and assignments.';
+      }
+      if (
+        !syllabusData.policies ||
+        (Object.values(syllabusData.policies) as string[]).some((policy) => !policy.trim())
+      ) {
+        newErrors.policies = 'All policies must be filled out.';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0; // Return true if no errors
+  };
+
+  // Function to handle the "Continue" button click
+  const handleContinue = () => {
+    if (validateSyllabusData()) {
+      setActiveTab('preview'); // Proceed to the next tab only if validation passes
+    }
   };
 
   return (
@@ -231,6 +297,7 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             value={syllabusData.courseTitle}
                             onChange={(e) => setSyllabusData({...syllabusData, courseTitle: e.target.value})}
                           />
+                          {errors.courseTitle && <p className="text-red-500 text-sm">{errors.courseTitle}</p>}
                         </div>
                         <div>
                           <Label htmlFor="instructor">Instructor Name</Label>
@@ -239,6 +306,7 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             value={syllabusData.instructor}
                             onChange={(e) => setSyllabusData({...syllabusData, instructor: e.target.value})}
                           />
+                          {errors.instructor && <p className="text-red-500 text-sm">{errors.instructor}</p>}
                         </div>
                         <div>
                           <Label htmlFor="term">Term</Label>
@@ -247,6 +315,8 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             value={syllabusData.term}
                             onChange={(e) => setSyllabusData({...syllabusData, term: e.target.value})}
                           />
+                          {errors.term && <p className="text-red-500 text-sm">{errors.term}</p>}
+
                         </div>
                         <div>
                           <Label htmlFor="courseDescription">Course Description</Label>
@@ -256,6 +326,7 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             onChange={(e) => setSyllabusData({...syllabusData, courseDescription: e.target.value})}
                             className="min-h-[100px]"
                           />
+                          {errors.courseDescription && <p className="text-red-500 text-sm">{errors.courseDescription}</p>}
                         </div>
                       </div>
                     </AccordionContent>
@@ -289,6 +360,9 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             </Button>
                           </div>
                         ))}
+                        {errors.learningObjectives && (
+                          <p className="text-red-500 text-sm">{errors.learningObjectives}</p>
+                        )}
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -380,6 +454,9 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             </div>
                           </div>
                         ))}
+                        {errors.requiredMaterials && (
+                          <p className="text-red-500 text-sm">{errors.requiredMaterials}</p>
+                        )}
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -447,6 +524,9 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             </Button>
                           </div>
                         ))}
+                        {errors.gradingPolicy && (
+                          <p className="text-red-500 text-sm">{errors.gradingPolicy}</p>
+                        )}
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -509,6 +589,9 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             </div>
                           </div>
                         ))}
+                        {errors.weeklySchedule && (
+                          <p className="text-red-500 text-sm">{errors.weeklySchedule}</p>
+                        )}
                         <div className="flex justify-between">
                           <Button
                             variant="outline"
@@ -565,6 +648,9 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                             />
                           </div>
                         ))}
+                        {errors.policies && (
+                          <p className="text-red-500 text-sm">{errors.policies}</p>
+                        )}
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -590,10 +676,15 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                     Preview
                   </Button>
                 </div>
-                <Button onClick={() => setActiveTab('preview')}>
-                  <Check className="mr-2 h-4 w-4" />
-                  Continue
-                </Button>
+                <div className="flex flex-col items-end">
+                  {Object.keys(errors).length > 0 && (
+                    <p className="text-red-500 text-sm mb-2">Please fix the errors above before continuing.</p>
+                  )}
+                  <Button onClick={handleContinue}>
+                    <Check className="mr-2 h-4 w-4" />
+                    Continue
+                  </Button>
+                </div>
               </CardFooter>
             </Card>
           )}
@@ -613,7 +704,7 @@ export const SyllabusCreator = ({courseDetails, onComplete, isCreating}: Syllabu
                     <Edit2 className="mr-2 h-4 w-4" />
                     Edit
                   </Button>
-                  <Button onClick={onComplete} disabled={isCreating}>
+                  <Button onClick={() => onComplete(syllabusData)} disabled={isCreating}>
                     {isCreating ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -15,6 +15,8 @@ import {PageHeader} from '@/components/page-header';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {SyllabusCreator} from './syllabus-creator';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -23,11 +25,11 @@ const formSchema = z.object({
   description: z.string().min(10, {
     message: 'Course description must be at least 10 characters.',
   }),
-  subject: z.string({
-    required_error: 'Please select a subject.',
+  subject: z.string().nonempty({
+    message: 'Please select a subject.',
   }),
-  gradeLevel: z.string({
-    required_error: 'Please select a grade level.',
+  gradeLevel: z.string().nonempty({
+    message: 'Please select a grade level.',
   }),
 });
 
@@ -52,13 +54,50 @@ const CreateCoursePage = () => {
     setActiveTab('syllabus');
   }
 
-  function onCreateCourse() {
-    setIsCreating(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsCreating(false);
+  async function onCreateCourse(syllabusData: any) {
+    const gradingPolicyArray = Object.values(syllabusData.gradingPolicy);
+    const policiesArray = Object.values(syllabusData.policies);
+
+    const coursePayload = {
+      title: syllabusData.courseTitle,
+      instructorName: syllabusData.instructor,
+      term: syllabusData.term,
+      subject: (courseDetails as any).subject,
+      gradeLevel: (courseDetails as any).gradeLevel,
+      description: syllabusData.courseDescription,
+      learningObjectives: syllabusData.learningObjectives,
+      requiredMaterials: syllabusData.requiredMaterials,
+      weeklySchedule: syllabusData.weeklySchedule,
+      gradingPolicy: gradingPolicyArray,
+      coursePolicies: policiesArray,
+    };
+
+    try {
+      setIsCreating(true); // Set loading state
+
+      // Get the auth token from cookies
+      const authToken = Cookies.get('authToken'); // Retrieve the token using js-cookie
+
+      if (!authToken) {
+        throw new Error('Authorization token is missing.');
+      }
+
+      // Make the POST API call using axios
+      const response = await axios.post('/api/courses', coursePayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`, // Include the Bearer token
+        },
+      });
+
+      // Redirect to the courses dashboard
       router.push('/dashboard/courses');
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error creating course:', error.response?.data?.error || error.message);
+      alert(error.response?.data?.error || 'Failed to create course.'); // Show error to the user
+    } finally {
+      setIsCreating(false); // Reset loading state
+    }
   }
 
   return (
