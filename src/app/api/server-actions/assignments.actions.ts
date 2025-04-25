@@ -15,6 +15,7 @@ type GroupSettingsType = {
 };
 
 type AssignmentType = {
+  assignmentType: string;
   title: string;
   courseId: string;
   dueDate: Date;
@@ -31,6 +32,7 @@ export async function createAssignment(assignmentData: AssignmentType) {
 
   // Input validation
   if (
+    !assignmentData.assignmentType ||
     !assignmentData.title ||
     !assignmentData.courseId ||
     !assignmentData.dueDate ||
@@ -39,7 +41,8 @@ export async function createAssignment(assignmentData: AssignmentType) {
     !assignmentData.createdBy
   ) {
     throw new Error(
-        'All required fields (title, courseId, dueDate, description, learningObjectives, createdBy) must be provided.',
+        // eslint-disable-next-line max-len
+        'All required fields (assignmentType, title, courseId, dueDate, description, learningObjectives, createdBy) must be provided.',
     );
   }
 

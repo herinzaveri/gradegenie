@@ -33,6 +33,8 @@ import {Badge} from '@/components/ui/badge';
 import {PDFPreviewDialog} from '@/components/pdf-preview-dialog';
 import {EmailPreviewDialog} from '@/components/email-preview-dialog';
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 
 // Assignment type definitions
 const ASSIGNMENT_TYPES = {
@@ -123,12 +125,39 @@ const CreateAssignmentPage = () => {
   // Assignment type selection
   const [selectedType, setSelectedType] = useState<string>('');
 
+  const [courses, setCourses] = useState<any[]>([]);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+
+  const [errors, setErrors] = useState({
+    assignmentTitle: '',
+    selectedCourse: '',
+    dueDate: '',
+    description: '',
+    learningObjectives: '',
+    quizSettings: '',
+    groupSettings: '',
+  });
+
   // Basic assignment info
   const [assignmentTitle, setAssignmentTitle] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [description, setDescription] = useState('');
   const [learningObjectives, setLearningObjectives] = useState('');
+  // Quiz settings state
+  const [quizSettings, setQuizSettings] = useState({
+    numberOfQuestions: 10,
+    timeLimit: 30,
+    randomizeQuestions: false,
+    showCorrectAnswers: false,
+  });
+
+  // Group settings state
+  const [groupSettings, setGroupSettings] = useState({
+    groupSize: 4,
+    groupFormation: 'instructor',
+    includePeerEvaluation: true,
+  });
 
   // Generation states
   const [isGenerating, setIsGenerating] = useState(false);
@@ -153,6 +182,88 @@ const CreateAssignmentPage = () => {
 
   // Copy state
   const [copied, setCopied] = useState<string | null>(null);
+
+  const validateFields = () => {
+    const newErrors: any = {};
+
+    if (!assignmentTitle.trim()) {
+      newErrors.assignmentTitle = 'Assignment title is required.';
+    }
+
+    if (!selectedCourse) {
+      newErrors.selectedCourse = 'Please select a course.';
+    }
+
+    if (!dueDate) {
+      newErrors.dueDate = 'Due date is required.';
+    }
+
+    if (!description.trim()) {
+      newErrors.description = 'Description is required.';
+    }
+
+    if (!learningObjectives.trim()) {
+      newErrors.learningObjectives = 'Learning objectives are required.';
+    }
+
+    if (selectedType === ASSIGNMENT_TYPES.MULTIPLE_CHOICE) {
+      if (!quizSettings.numberOfQuestions || quizSettings.numberOfQuestions <= 0) {
+        newErrors.quizSettings = 'Number of questions must be greater than 0.';
+      }
+      if (!quizSettings.timeLimit || quizSettings.timeLimit <= 0) {
+        newErrors.quizSettings = 'Time limit must be greater than 0.';
+      }
+    }
+
+    if (selectedType === ASSIGNMENT_TYPES.GROUP_PROJECT) {
+      if (!groupSettings.groupSize || groupSettings.groupSize <= 0) {
+        newErrors.groupSettings = 'Group size must be greater than 0.';
+      }
+      if (!groupSettings.groupFormation) {
+        newErrors.groupSettings = 'Group formation is required.';
+      }
+    }
+
+    setErrors(newErrors);
+
+    // Return true if no errors, false otherwise
+    return Object.keys(newErrors).length === 0;
+  };
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      setIsLoadingCourses(true);
+
+      try {
+        // Get the auth token from cookies
+        const authToken = Cookies.get('authToken'); // Retrieve the token using js-cookie
+
+        if (!authToken) {
+          throw new Error('Authorization token is missing.');
+        }
+
+        // Fetch courses from the API
+        const response = await axios.get('/api/courses', {
+          headers: {
+            Authorization: `Bearer ${authToken}`, // Include the Bearer token
+          },
+        });
+
+        setCourses(response.data); // Set the fetched courses
+      } catch (error: any) {
+        console.error('Error fetching courses:', error.response?.data?.error || error.message);
+        toast({
+          title: 'Error',
+          description: error.response?.data?.error || 'Failed to fetch courses.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingCourses(false);
+      }
+    };
+
+    fetchCourses();
+  }, []);
 
   // Handle query params for quick creation
   useEffect(() => {
@@ -185,6 +296,11 @@ const CreateAssignmentPage = () => {
 
   // Handle details submission and move to generation
   const handleDetailsSubmission = () => {
+    // Validate fields
+    if (!validateFields()) {
+      return;
+    }
+
     if (!assignmentTitle) {
       toast({
         title: 'Missing information',
@@ -576,21 +692,61 @@ This peer evaluation will be used as part of the individual grade calculation fo
   };
 
   // Handle saving the assignment
-  const handleSaveAssignment = () => {
+  const handleSaveAssignment = async () => {
     setIsSaving(true);
 
-    // Simulate saving assignment
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      // Get the auth token from cookies
+      const authToken = Cookies.get('authToken'); // Retrieve the token using js-cookie
 
-      toast({
-        title: 'Assignment Saved',
-        description: 'Your assignment has been saved successfully',
+      if (!authToken) {
+        throw new Error('Authorization token is missing.');
+      }
+
+      // Prepare the assignment payload
+      const assignmentPayload: any = {
+        assignmentType: selectedType,
+        title: assignmentTitle,
+        courseId: selectedCourse,
+        dueDate,
+        description,
+        learningObjectives,
+      };
+
+      if (selectedType === ASSIGNMENT_TYPES.MULTIPLE_CHOICE) {
+        assignmentPayload.quizSettings = quizSettings;
+      }
+
+      if (selectedType === ASSIGNMENT_TYPES.GROUP_PROJECT) {
+        assignmentPayload.groupSettings = groupSettings;
+      }
+
+      // Make the POST API call using axios
+      const response = await axios.post('/api/assignments', assignmentPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`, // Include the Bearer token
+        },
       });
 
-      // In a real app, this would save to a database and redirect
+      // Show success toast
+      toast({
+        title: 'Assignment Created',
+        description: 'Your assignment has been created successfully.',
+      });
+
+      // Redirect to the assignments dashboard
       router.push('/dashboard/assignments');
-    }, 2000);
+    } catch (error: any) {
+      console.error('Error creating assignment:', error.response?.data?.error || error.message);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to create assignment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Handle copying content to clipboard
@@ -706,24 +862,28 @@ This peer evaluation will be used as part of the individual grade calculation fo
                 value={assignmentTitle}
                 onChange={(e) => setAssignmentTitle(e.target.value)}
               />
+              {errors.assignmentTitle && <p className="text-red-500 text-sm">{errors.assignmentTitle}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="course">Course</Label>
-              <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select course" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Introduction to Psychology (PSY 101)">
-                    Introduction to Psychology (PSY 101)
-                  </SelectItem>
-                  <SelectItem value="Advanced Statistics (STAT 301)">Advanced Statistics (STAT 301)</SelectItem>
-                  <SelectItem value="Environmental Science (ENV 201)">Environmental Science (ENV 201)</SelectItem>
-                  <SelectItem value="Creative Writing (ENG 215)">Creative Writing (ENG 215)</SelectItem>
-                  <SelectItem value="Biology 101">Biology 101</SelectItem>
-                </SelectContent>
-              </Select>
+              {isLoadingCourses ? (
+                <p>Loading courses...</p>
+                ) : (
+                  <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select course" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map((course) => (
+                        <SelectItem key={course._id} value={course._id}>
+                          {course.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+              )}
+              {errors.selectedCourse && <p className="text-red-500 text-sm">{errors.selectedCourse}</p>}
             </div>
 
             <div className="space-y-2">
@@ -734,6 +894,7 @@ This peer evaluation will be used as part of the individual grade calculation fo
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
               />
+              {errors.dueDate && <p className="text-red-500 text-sm">{errors.dueDate}</p>}
             </div>
 
             <div className="space-y-2">
@@ -745,6 +906,7 @@ This peer evaluation will be used as part of the individual grade calculation fo
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+              {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
             </div>
 
             <div className="space-y-2">
@@ -756,6 +918,7 @@ This peer evaluation will be used as part of the individual grade calculation fo
                 value={learningObjectives}
                 onChange={(e) => setLearningObjectives(e.target.value)}
               />
+              {errors.learningObjectives && <p className="text-red-500 text-sm">{errors.learningObjectives}</p>}
             </div>
 
             {/* Type-specific fields */}
@@ -768,7 +931,9 @@ This peer evaluation will be used as part of the individual grade calculation fo
                     <Input
                       id="num-questions"
                       type="number"
-                      defaultValue="10"
+                      value={quizSettings.numberOfQuestions}
+                      onChange={(e) =>
+                        setQuizSettings({...quizSettings, numberOfQuestions: parseInt(e.target.value, 10)})}
                     />
                   </div>
                   <div className="space-y-2">
@@ -776,21 +941,34 @@ This peer evaluation will be used as part of the individual grade calculation fo
                     <Input
                       id="time-limit"
                       type="number"
-                      defaultValue="30"
+                      value={quizSettings.timeLimit}
+                      onChange={(e) =>
+                        setQuizSettings({...quizSettings, timeLimit: parseInt(e.target.value, 10)})}
                     />
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="randomize" />
+                    <Checkbox
+                      id="randomize"
+                      checked={quizSettings.randomizeQuestions}
+                      onCheckedChange={(checked) =>
+                        setQuizSettings({...quizSettings, randomizeQuestions: Boolean(checked)})}
+                    />
                     <Label htmlFor="randomize" className="text-sm font-normal">
                       Randomize question order
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="show-answers" />
+                    <Checkbox
+                      id="show-answers"
+                      checked={quizSettings.showCorrectAnswers}
+                      onCheckedChange={(checked) =>
+                        setQuizSettings({...quizSettings, showCorrectAnswers: Boolean(checked)})}
+                    />
                     <Label htmlFor="show-answers" className="text-sm font-normal">
                       Show correct answers after submission
                     </Label>
                   </div>
+                  {errors.quizSettings && <p className="text-red-500 text-sm">{errors.quizSettings}</p>}
                 </div>
               </div>
             )}
@@ -804,12 +982,18 @@ This peer evaluation will be used as part of the individual grade calculation fo
                     <Input
                       id="group-size"
                       type="number"
-                      defaultValue="4"
+                      value={groupSettings.groupSize}
+                      onChange={(e) =>
+                        setGroupSettings({...groupSettings, groupSize: parseInt(e.target.value, 10)})}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="group-formation">Group Formation</Label>
-                    <RadioGroup defaultValue="instructor">
+                    <RadioGroup
+                      value={groupSettings.groupFormation}
+                      onValueChange={(value) =>
+                        setGroupSettings({...groupSettings, groupFormation: value})}
+                    >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="instructor" id="instructor" />
                         <Label htmlFor="instructor" className="text-sm font-normal">
@@ -831,11 +1015,17 @@ This peer evaluation will be used as part of the individual grade calculation fo
                     </RadioGroup>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="peer-eval" defaultChecked />
+                    <Checkbox
+                      id="peer-eval"
+                      checked={groupSettings.includePeerEvaluation}
+                      onCheckedChange={(checked) =>
+                        setGroupSettings({...groupSettings, includePeerEvaluation: Boolean(checked)})}
+                    />
                     <Label htmlFor="peer-eval" className="text-sm font-normal">
                       Include peer evaluation component
                     </Label>
                   </div>
+                  {errors.groupSettings && <p className="text-red-500 text-sm">{errors.groupSettings}</p>}
                 </div>
               </div>
             )}
